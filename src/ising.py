@@ -221,11 +221,15 @@ def propagate(configuration : np.ndarray, n_timestep : int, J : float, B : float
 
     for i in range(n_timestep):
         spin_to_flip = tuple(np.random.randint(0, N, size=2))
-
-        new_energy = E + compute_flip_energy(configuration, spin_to_flip, J, B)
-
-        if np.random.rand() < np.exp(-(new_energy - E)/temperature):
+        
+        dE = compute_flip_energy(configuration, spin_to_flip, J, B)
+     
+        if dE < 0:
             configuration[spin_to_flip[0], spin_to_flip[1]] *= -1
+            E += dE
+        elif np.random.rand() < np.exp(-dE/temperature):
+            configuration[spin_to_flip[0], spin_to_flip[1]] *= -1
+            E += dE
         
         if n_output and i % n_output == 0:
             trajectory[i//n_output] = configuration
@@ -288,8 +292,8 @@ def animate_trajectory(filename : str) -> None:
     plt.show()
 
 def main():
-    configuration = generate_configuration(100)
-    propagate(configuration, 100000, 1, 0, 2.4, n_output=100, filename="out.csv")
+    configuration = generate_configuration(10, True)
+    propagate(configuration, 100000, 1, 0, 3, n_output=10, filename="out.csv")
     animate_trajectory("out.csv")
 
 if __name__ == "__main__":
