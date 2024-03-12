@@ -224,10 +224,7 @@ def propagate(configuration : np.ndarray, n_timestep : int, J : float, B : float
         
         dE = compute_flip_energy(configuration, spin_to_flip, J, B)
      
-        if dE < 0:
-            configuration[spin_to_flip[0], spin_to_flip[1]] *= -1
-            E += dE
-        elif np.random.rand() < np.exp(-dE/temperature):
+        if dE <= 0 or np.random.rand() < np.exp(-dE/temperature): # Only compute exponential if dE > 0, otherwise always accept
             configuration[spin_to_flip[0], spin_to_flip[1]] *= -1
             E += dE
         
