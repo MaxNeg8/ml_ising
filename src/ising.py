@@ -133,6 +133,42 @@ def magnetization(configuration : np.ndarray, normalize : bool=True) -> float:
         return np.mean(configuration)
     return np.sum(configuration)
 
+def save_trajectory(filename : str, trajectory : np.ndarray) -> None:
+    """
+    Function that saves a simulation trajectory as a csv file.
+
+    Parameters
+    ----------
+    filename : str
+        The name of the file the trajectory will be saved to
+
+    trajectory : np.ndarray
+        The NumPy array containing the trajectory. Shape is (n_timestep, N, N) and
+        the configuration at timestep i is trajectory[i].
+    """
+    n_timestep = trajectory.shape[0]
+    N = trajectory.shape[1]
+    flattened_trajectory = np.reshape(trajectory, (n_timestep, N**2))
+    np.savetxt(filename, flattened_trajectory, delimiter=",", fmt="%i")
+
+def load_trajectory(filename : str) -> np.ndarray:
+    """
+    Function that loads a simulation trajectory from the given file.
+
+    Parameters
+    ----------
+    filename : str
+        The name of the file from which to load the trajectory
+
+    Returns
+    -------
+    trajectory : np.ndarray
+        The loaded trajectory of shape (n_timestep, N, N)
+    """
+    loaded_trajectory = np.loadtxt(filename, delimiter=",").astype(int)
+    n_timestep = loaded_trajectory.shape[0]
+    N = int(np.sqrt(loaded_trajectory.shape[1]))
+    return np.reshape(loaded_trajectory, (n_timestep, N, N))
 
 def propagate(configuration : np.ndarray, n_timestep : int, J : float, B : float, temperature : float, n_output : int=0, filename : str=None, copy : bool=False) -> Optional[np.ndarray]:
     """
@@ -195,7 +231,7 @@ def propagate(configuration : np.ndarray, n_timestep : int, J : float, B : float
             trajectory[i//n_output] = configuration
     
     if n_output:
-        np.save(filename, trajectory)
+        save_trajectory(filename, trajectory)
 
     if copy:
         return configuration
@@ -228,7 +264,7 @@ def animate_trajectory(filename : str) -> None:
     if not os.path.isfile(filename):
         raise ValueError(f"File {filename} does not exist")
 
-    trajectory = np.load(filename)
+    trajectory = load_trajectory(filename)
 
     n_frames = trajectory.shape[0]
     assert n_frames > 0, "Trajectory has no images"
@@ -253,8 +289,8 @@ def animate_trajectory(filename : str) -> None:
 
 def main():
     configuration = generate_configuration(100)
-    propagate(configuration, 100000, 1, 0, 2.4, n_output=100, filename="out.npy")
-    animate_trajectory("out.npy")
+    propagate(configuration, 100000, 1, 0, 2.4, n_output=100, filename="out.csv")
+    animate_trajectory("out.csv")
 
 if __name__ == "__main__":
     main()
