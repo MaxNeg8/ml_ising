@@ -4,6 +4,7 @@ from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
 from matplotlib.widgets import Slider
 from typing import Optional
+import json
 import os
 
 def generate_configuration(N : int, random : bool=True) -> np.ndarray:
@@ -135,7 +136,9 @@ def magnetization(configuration : np.ndarray, normalize : bool=True) -> float:
 
 def save_trajectory(filename : str, trajectory : np.ndarray) -> None:
     """
-    Function that saves a simulation trajectory as a csv file.
+    Function that saves a simulation trajectory to file. Compresses the data
+    by only storing indices of spins that changed between frames, which produces
+    much smaller trajectory files compared to storing each configuration individually.
 
     Parameters
     ----------
@@ -148,12 +151,22 @@ def save_trajectory(filename : str, trajectory : np.ndarray) -> None:
     """
     n_timestep = trajectory.shape[0]
     N = trajectory.shape[1]
+    
+    initial_configuration = trajectory[0].flatten()
+    json_dict = {"initial": [int(spin) for spin in initial_configuration]}
+
     flattened_trajectory = np.reshape(trajectory, (n_timestep, N**2))
-    np.savetxt(filename, flattened_trajectory, delimiter=",", fmt="%i")
+    difference = np.abs(flattened_trajectory[1:] - flattened_trajectory[:-1])
+    
+    json_dict["changes"] = [np.nonzero(row)[0].tolist() for row in difference]
+    
+    with open(filename, "w") as file:
+        json.dump(json_dict, file)
 
 def load_trajectory(filename : str) -> np.ndarray:
     """
-    Function that loads a simulation trajectory from the given file.
+    Function that loads a simulation trajectory from the given file. Decompresses
+    the data.
 
     Parameters
     ----------
@@ -165,10 +178,24 @@ def load_trajectory(filename : str) -> np.ndarray:
     trajectory : np.ndarray
         The loaded trajectory of shape (n_timestep, N, N)
     """
-    loaded_trajectory = np.loadtxt(filename, delimiter=",").astype(int)
-    n_timestep = loaded_trajectory.shape[0]
-    N = int(np.sqrt(loaded_trajectory.shape[1]))
-    return np.reshape(loaded_trajectory, (n_timestep, N, N))
+    with open(filename) as file:
+        json_dict = json.load(file)
+
+    initial_configuration = np.array(json_dict["initial"], dtype=int)
+
+    n_timestep = len(json_dict["changes"]) + 1
+    N = int(np.sqrt(initial_configuration.size))
+
+    trajectory = np.empty((n_timestep, N**2), dtype=int)
+    trajectory[0] = initial_configuration
+
+    changes = json_dict["changes"]
+
+    for i in range(1, n_timestep):
+        trajectory[i] = trajectory[i-1]
+        trajectory[i, changes[i-1]] *= -1
+
+    return np.reshape(trajectory, (n_timestep, N, N))
 
 def propagate(configuration : np.ndarray, n_timestep : int, J : float, B : float, temperature : float, n_output : int=0, filename : str=None, copy : bool=False) -> Optional[np.ndarray]:
     """
@@ -210,7 +237,7 @@ def propagate(configuration : np.ndarray, n_timestep : int, J : float, B : float
 
     if n_output:
         n_frames = int(np.ceil(n_timestep/n_output))
-        trajectory = np.empty((n_frames, configuration.shape[0], configuration.shape[1]))
+        trajectory = np.empty((n_frames, configuration.shape[0], configuration.shape[1]), dtype=int)
 
     N = configuration.shape[0]
 
@@ -290,8 +317,8 @@ def animate_trajectory(filename : str) -> None:
 
 def main():
     configuration = generate_configuration(10, True)
-    propagate(configuration, 100000, 1, 0, 3, n_output=10, filename="out.csv")
-    animate_trajectory("out.csv")
+    propagate(configuration, 100000, 1, 0, 3, n_output=10, filename="out.json")
+    animate_trajectory("out.json")
 
 if __name__ == "__main__":
     main()
