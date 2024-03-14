@@ -1,9 +1,13 @@
 import numpy as np
+
 from numba import jit
+
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
 from matplotlib.widgets import Slider
-from typing import Optional
+
+from typing import Optional, Self
+
 import json
 import os
 
@@ -134,68 +138,6 @@ def magnetization(configuration : np.ndarray, normalize : bool=True) -> float:
         return np.mean(configuration)
     return np.sum(configuration)
 
-def save_trajectory(filename : str, trajectory : np.ndarray) -> None:
-    """
-    Function that saves a simulation trajectory to file. Compresses the data
-    by only storing indices of spins that changed between frames, which produces
-    much smaller trajectory files compared to storing each configuration individually.
-
-    Parameters
-    ----------
-    filename : str
-        The name of the file the trajectory will be saved to
-
-    trajectory : np.ndarray
-        The NumPy array containing the trajectory. Shape is (n_timestep, N, N) and
-        the configuration at timestep i is trajectory[i].
-    """
-    n_timestep = trajectory.shape[0]
-    N = trajectory.shape[1]
-    
-    initial_configuration = trajectory[0].flatten()
-    json_dict = {"initial": [int(spin) for spin in initial_configuration]}
-
-    flattened_trajectory = np.reshape(trajectory, (n_timestep, N**2))
-    difference = np.abs(flattened_trajectory[1:] - flattened_trajectory[:-1])
-    
-    json_dict["changes"] = [np.nonzero(row)[0].tolist() for row in difference]
-    
-    with open(filename, "w") as file:
-        json.dump(json_dict, file)
-
-def load_trajectory(filename : str) -> np.ndarray:
-    """
-    Function that loads a simulation trajectory from the given file. Decompresses
-    the data.
-
-    Parameters
-    ----------
-    filename : str
-        The name of the file from which to load the trajectory
-
-    Returns
-    -------
-    trajectory : np.ndarray
-        The loaded trajectory of shape (n_timestep, N, N)
-    """
-    with open(filename) as file:
-        json_dict = json.load(file)
-
-    initial_configuration = np.array(json_dict["initial"], dtype=int)
-
-    n_timestep = len(json_dict["changes"]) + 1
-    N = int(np.sqrt(initial_configuration.size))
-
-    trajectory = np.empty((n_timestep, N**2), dtype=int)
-    trajectory[0] = initial_configuration
-
-    changes = json_dict["changes"]
-
-    for i in range(1, n_timestep):
-        trajectory[i] = trajectory[i-1]
-        trajectory[i, changes[i-1]] *= -1
-
-    return np.reshape(trajectory, (n_timestep, N, N))
 
 def propagate(configuration : np.ndarray, n_timestep : int, J : float, B : float, temperature : float, n_output : int=0, filename : str=None, copy : bool=False) -> Optional[np.ndarray]:
     """
@@ -259,7 +201,7 @@ def propagate(configuration : np.ndarray, n_timestep : int, J : float, B : float
             trajectory[i//n_output] = configuration
     
     if n_output:
-        save_trajectory(filename, trajectory)
+        Trajectory(trajectory).save(filename)
 
     if copy:
         return configuration
@@ -280,45 +222,135 @@ def plot_configuration(configuration : np.ndarray) -> None:
 
     plt.show()
 
-def animate_trajectory(filename : str) -> None:
+class Trajectory:
     """
-    Function that generates an animation of a given trajectory file.
-
-    Parameters
-    ----------
-    filename : str
-        The file containing the trajectory to plot
+    Class that represents a simulation trajectory for the 2D ising model. It allows for
+    loading/saving trajectories in a compressed format and analyzing trajectories.
     """
-    if not os.path.isfile(filename):
-        raise ValueError(f"File {filename} does not exist")
 
-    trajectory = load_trajectory(filename)
+    def __init__(self, trajectory : np.ndarray, name : str = ""):
+        """
+        Init function for the Trajectory class.
 
-    n_frames = trajectory.shape[0]
-    assert n_frames > 0, "Trajectory has no images"
+        Parameters
+        ----------
+        trajectory : np.ndarray
+            The simulation trajectory array with shape (n_timestep, N, N) and dtype int.
 
-    def draw(frame):
-        ax.clear()
-        ax.imshow(trajectory[frame], cmap="summer")
-        ax.set_title(f"File: {os.path.basename(filename)}, Frame: {frame}/{n_frames}")
-        ax.set_axis_off()
+        name : str
+            Name for the simulation trajectory (will be shown in plot title)
+        """
+        assert isinstance(trajectory, np.ndarray), "Trajectory must be NumPy array"
+        assert trajectory.ndim == 3 and trajectory.shape[1] == trajectory.shape[2], "Trajectory must have shape (n_timestep, N, N)"
+        assert trajectory.dtype == int, "Trajectory must have datatype int"
+ 
+        self._n_timestep = trajectory.shape[0]
+        self._N = trajectory.shape[1]
 
-    fig, ax = plt.subplots(1, 1, figsize=(7, 7))
-    animation = FuncAnimation(fig, draw, frames=n_frames, interval=1/50, repeat=True)
+        self._trajectory = trajectory
+        self.name = name
+
+    @classmethod
+    def from_file(cls, filename : str, name : str = "") -> Self:
+        """
+        Function that loads a simulation trajectory from the given file. Decompresses
+        the data.
+
+        Parameters
+        ----------
+        filename : str
+            The name of the file from which to load the trajectory
+
+        name : str
+            Name for the loaded trajectory. If empty, filename will be used.
+
+        Returns
+        -------
+        trajectory : Trajectory
+            The loaded trajectory object
+        """
+        with open(filename) as file:
+            json_dict = json.load(file)
+
+        initial_configuration = np.array(json_dict["initial"], dtype=int)
+
+        n_timestep = len(json_dict["changes"]) + 1
+        N = int(np.sqrt(initial_configuration.size))
+
+        trajectory = np.empty((n_timestep, N**2), dtype=int)
+        trajectory[0] = initial_configuration
+
+        changes = json_dict["changes"]
+
+        for i in range(1, n_timestep):
+            trajectory[i] = trajectory[i-1]
+            trajectory[i, changes[i-1]] *= -1
+
+        return cls(np.reshape(trajectory, (n_timestep, N, N)), os.path.basename(filename))
+
+    def save(self, filename : str) -> None:
+        """
+        Function that saves the trajectory to file. Compresses the data
+        by only storing indices of spins that changed between frames, which produces
+        much smaller trajectory files compared to storing each configuration individually.
+
+        Parameters
+        ----------
+        filename : str
+            The name of the file the trajectory will be saved to
+        """
     
-    slider = Slider(plt.axes([0.2, 0.02, 0.65, 0.03]), 'Speed', 1, 1000, valinit=500)
+        initial_configuration = self.trajectory[0].flatten()
+        json_dict = {"initial": [int(spin) for spin in initial_configuration]}
 
-    def update_speed(value):
-        animation.event_source.interval = 100/value
+        flattened_trajectory = np.reshape(self.trajectory, (self.n_timestep, self.N**2))
+        difference = np.abs(flattened_trajectory[1:] - flattened_trajectory[:-1])
+    
+        json_dict["changes"] = [np.nonzero(row)[0].tolist() for row in difference]
+    
+        with open(filename, "w") as file:
+            json.dump(json_dict, file)
 
-    slider.on_changed(update_speed)
+    def animate(self) -> None:
+        """
+        Function that generates an animation of the trajectory.
+        """
 
-    plt.show()
+        def draw(frame):
+            ax.clear()
+            ax.imshow(self.trajectory[frame], cmap="summer")
+            ax.set_title((f"Name: {self.name}, " if len(self.name) > 0 else "") + f"Frame: {frame}/{self.n_timestep}")
+            ax.set_axis_off()
+
+        fig, ax = plt.subplots(1, 1, figsize=(7, 7))
+        animation = FuncAnimation(fig, draw, frames=self.n_timestep, interval=1/50, repeat=True)
+    
+        slider = Slider(plt.axes([0.2, 0.02, 0.65, 0.03]), 'Speed', 1, 1000, valinit=500)
+
+        def update_speed(value):
+            animation.event_source.interval = 100/value
+
+        slider.on_changed(update_speed)
+
+        plt.show()     
+
+    @property
+    def trajectory(self):
+        return self._trajectory
+
+    @property
+    def N(self):
+        return self._N
+
+    @property
+    def n_timestep(self):
+        return self._n_timestep
+
 
 def main():
     configuration = generate_configuration(10, True)
     propagate(configuration, 100000, 1, 0, 3, n_output=10, filename="out.json")
-    animate_trajectory("out.json")
+    Trajectory.from_file("out.json").animate()
 
 if __name__ == "__main__":
     main()
