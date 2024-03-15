@@ -242,6 +242,35 @@ def plot_configuration(configuration : np.ndarray) -> None:
 
     plt.show()
 
+def generate_trajectory_name(N : int, J : float, B : float, temperature : float, folder : str = "trajectories") -> str:
+    """
+    Function that generates an appropriate file name for a trajectory of a simulation with given
+    parameters
+
+    Parameters
+    ----------
+    N : int
+        System width/height
+
+    J : float
+        Spin-Spin coupling strength
+
+    B : float
+        Strength of magnetic field
+
+    temperature : float
+        Simulation temperature
+
+    folder : str
+        Name of the folder to which the trajectory will be saved (default: trajectories)
+
+    Returns
+    -------
+    filename : str
+        The name of the trajectory file
+    """
+    return f"{folder}/{N}_{J}_{B}@{temperature}.json"
+
 class Trajectory:
     """
     Class that represents a simulation trajectory for the 2D ising model. It allows for
