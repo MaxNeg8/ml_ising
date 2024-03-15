@@ -10,6 +10,7 @@ from typing import Optional, Self
 
 import json
 import os
+import time
 
 def generate_configuration(N : int, random : bool=True) -> np.ndarray:
     """
@@ -188,11 +189,15 @@ def propagate(configuration : np.ndarray, n_timestep : int, J : float, B : float
 
     E = compute_energy(configuration, J, B)
     accepted = 0
+
     prefix = f"[N={N},J={J},B={B}] "
+    if not mute_output:
+        start_simulation = time.time()
+        elapsed = 0
 
     if copy:
         configuration = configuration.copy()
-
+    
     for i in range(n_timestep):
         spin_to_flip = tuple(np.random.randint(0, N, size=2))
         
@@ -207,11 +212,13 @@ def propagate(configuration : np.ndarray, n_timestep : int, J : float, B : float
             trajectory[i//n_output] = configuration
         
         if not mute_output:
-            print(prefix, f"Simulation progress: {i/n_timestep*100:0.1f}%, Acceptance probability: {accepted/n_timestep:0.4f} ({accepted}/{n_timestep})\r", end="")
+            if i % 300 == 0:
+                elapsed = time.time() - start_simulation
+            print(prefix, f"Simulation progress: {i/n_timestep*100:0.1f}%, Acceptance probability: {accepted/(i+1):0.4f} ({accepted}/{i+1}), Elapsed: {elapsed:0.1f} s\r", end="")
     
     if not mute_output:
-        print(" "*100 + "\r", end="")
-        print(prefix, f"Done. Acceptance probability: {accepted/n_timestep:0.4f} ({accepted}/{n_timestep})")
+        print(" "*os.get_terminal_size()[0] + "\r", end="")
+        print(prefix, f"Done. Acceptance probability: {accepted/n_timestep:0.4f} ({accepted}/{n_timestep}), Elapsed: {elapsed:0.1f} s")
 
     if n_output:
         Trajectory(trajectory).save(filename)
@@ -362,7 +369,7 @@ class Trajectory:
 
 def main():
     configuration = generate_configuration(10, True)
-    propagate(configuration, n_timestep=100000, J=1, B=0, temperature=1, n_output=10, filename="out.json", mute_output=False)
+    propagate(configuration, n_timestep=10000, J=1, B=0, temperature=1, n_output=10, filename="out.json", mute_output=False)
     Trajectory.from_file("out.json").animate()
 
 if __name__ == "__main__":
