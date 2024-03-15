@@ -139,7 +139,7 @@ def magnetization(configuration : np.ndarray, normalize : bool=True) -> float:
     return np.sum(configuration)
 
 
-def propagate(configuration : np.ndarray, n_timestep : int, J : float, B : float, temperature : float, n_output : int=0, filename : str=None, copy : bool=False) -> Optional[np.ndarray]:
+def propagate(configuration : np.ndarray, n_timestep : int, J : float, B : float, temperature : float, n_output : int=0, filename : str=None, copy : bool=False, mute_output : bool = True) -> Optional[np.ndarray]:
     """
     Function that propagates a spin configuration in the Ising model using Markov Chain Monte Carlo and the Metropolis algorithm
 
@@ -170,6 +170,9 @@ def propagate(configuration : np.ndarray, n_timestep : int, J : float, B : float
         If True, creates a copy of the original array instead of overwriting it. The propagated copy
         is then returned.
 
+    mute_output : bool
+        If True, console output is muted.
+
     Returns
     -------
         None, if copy is False. Otherwise, the propagated copy of the configuration.
@@ -184,6 +187,8 @@ def propagate(configuration : np.ndarray, n_timestep : int, J : float, B : float
     N = configuration.shape[0]
 
     E = compute_energy(configuration, J, B)
+    accepted = 0
+    prefix = f"[N={N},J={J},B={B}] "
 
     if copy:
         configuration = configuration.copy()
@@ -196,10 +201,18 @@ def propagate(configuration : np.ndarray, n_timestep : int, J : float, B : float
         if dE <= 0 or np.random.rand() < np.exp(-dE/temperature): # Only compute exponential if dE > 0, otherwise always accept
             configuration[spin_to_flip[0], spin_to_flip[1]] *= -1
             E += dE
+            accepted += 1
         
         if n_output and i % n_output == 0:
             trajectory[i//n_output] = configuration
+        
+        if not mute_output:
+            print(prefix, f"Simulation progress: {i/n_timestep*100:0.1f}%, Acceptance probability: {accepted/n_timestep:0.4f} ({accepted}/{n_timestep})\r", end="")
     
+    if not mute_output:
+        print(" "*100 + "\r", end="")
+        print(prefix, f"Done. Acceptance probability: {accepted/n_timestep:0.4f} ({accepted}/{n_timestep})")
+
     if n_output:
         Trajectory(trajectory).save(filename)
 
@@ -217,7 +230,7 @@ def plot_configuration(configuration : np.ndarray) -> None:
     """
     fig, ax = plt.subplots(1, 1, figsize=(7, 7))
 
-    ax.imshow(configuration, cmap="summer")
+    ax.imshow(configuration, cmap="summer", vmin=-1, vmax=1)
     ax.set_axis_off()
 
     plt.show()
@@ -318,7 +331,7 @@ class Trajectory:
 
         def draw(frame):
             ax.clear()
-            ax.imshow(self.trajectory[frame], cmap="summer")
+            ax.imshow(self.trajectory[frame], cmap="summer", vmin=-1, vmax=1)
             ax.set_title((f"Name: {self.name}, " if len(self.name) > 0 else "") + f"Frame: {frame}/{self.n_timestep}")
             ax.set_axis_off()
 
@@ -349,7 +362,7 @@ class Trajectory:
 
 def main():
     configuration = generate_configuration(10, True)
-    propagate(configuration, 100000, 1, 0, 3, n_output=10, filename="out.json")
+    propagate(configuration, n_timestep=100000, J=1, B=0, temperature=1, n_output=10, filename="out.json", mute_output=False)
     Trajectory.from_file("out.json").animate()
 
 if __name__ == "__main__":
