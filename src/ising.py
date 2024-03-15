@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
 from matplotlib.widgets import Slider
 
-from typing import Optional, Self
+from typing import Optional, Self, Union, List
 
 import json
 import os
@@ -269,7 +269,54 @@ def generate_trajectory_name(N : int, J : float, B : float, temperature : float,
     filename : str
         The name of the trajectory file
     """
-    return f"{folder}/{N}_{J}_{B}@{temperature}.json"
+    return f"{folder}/ising_{N}_{J}_{B}@{temperature}.json"
+
+def filter_trajectories(N : Union[int, List[int], tuple[int, int]], J : Union[float, List[float], tuple[float, float]], 
+                        B : Union[float, List[float], tuple[float, float]], temperature : Union[float, List[float], tuple[float, float]], 
+                        folder : Union[str, List[str]] = "trajectories"):
+    """
+    Function that filters saved trajectories (that use the naming scheme defined in function generate_trajectory_name()) by
+    the relevant simulation parameters and returns their file names.
+
+    Parameters
+    ----------
+    sim_parameter : val | List[dtype(val)] | tuple[dtype(val), dtype(val)]
+        The various simulation parameters, where sim_parameter is one of (N, J, B, temperature) and val is the value
+        of the respective parameter. Depending on the datatype given (float/int, list or tuple), this has different
+        effects on the filter algorithm.
+
+        float/int:
+            If a single number is given, the function will only look for trajectories with the respective parameter
+            having exactly this value
+
+        list:
+            If a list of numbers is given, the algorithm will include all trajectories where the value of the respective
+            parameter is in the list given
+
+        tuple:
+            If a tuple of two numbers (val_min, val_max) is given, the function will look for trajectories with
+            val_min <= sim_param <= val_max, i.e., with the respective simulation parameter in the range defined
+            by the tuple (boundaries included)
+
+    folder : str | List[str]
+        The folder in which to look for trajectories. If a list of folders is given, the function will look for
+        trajectories in all the folders in the list
+
+    Returns
+    -------
+    filenames : List[str]
+        A list of file names that match the filter parameters
+    """
+    if isinstance(folder, str):
+        folder = [folder]
+
+    filenames = []
+    for dir in folder:
+        if not os.path.isdir(dir):
+            continue # Skip folder if it does not exist
+        files = [os.path.join(dir, f) for f in os.listdir(dir) if os.path.splitext(f)[1] == '.json' and f.startswith("ising_")]
+        filenames += files
+    return filenames
 
 class Trajectory:
     """
@@ -400,6 +447,7 @@ def main():
     configuration = generate_configuration(10, True)
     propagate(configuration, n_timestep=10000, J=1, B=0, temperature=1, n_output=10, filename="out.json", mute_output=False)
     Trajectory.from_file("out.json").animate()
+    print(filter_trajectories(1, 2, 3, 4, "test"))
 
 if __name__ == "__main__":
     main()
