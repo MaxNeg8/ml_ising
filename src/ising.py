@@ -310,12 +310,45 @@ def filter_trajectories(N : Union[int, List[int], tuple[int, int]], J : Union[fl
     if isinstance(folder, str):
         folder = [folder]
 
+    parameters = [N, J, B, temperature]
+
     filenames = []
     for dir in folder:
         if not os.path.isdir(dir):
             continue # Skip folder if it does not exist
         files = [os.path.join(dir, f) for f in os.listdir(dir) if os.path.splitext(f)[1] == '.json' and f.startswith("ising_")]
-        filenames += files
+
+        for file in files:
+            basename = os.path.basename(file)[6:-5] # Cut away ising_ prefix and .json file format
+            split_underscore = basename.split("_")
+            if len(split_underscore) != 3 or len(basename.split("@")) != 2 or len(split_underscore[2].split("@")) != 2:
+                continue # File name does not correspond to format defined in generate_trajectory_name()
+            
+            param_values = [split_underscore[0], split_underscore[1], split_underscore[2].split("@")[0], basename.split("@")[1]]
+            match = True
+            for i, parameter in enumerate(parameters):
+                comp_value = None
+                try:
+                    comp_value = float(param_values[i])
+                except ValueError:
+                    match = False
+                    break # Skip file
+                
+                if isinstance(parameter, list):
+                    if comp_value not in parameter:
+                        match = False
+                        break
+                elif isinstance(parameter, tuple):
+                    if not (parameter[0] <= comp_value <= parameter[1]):
+                        match = False
+                        break
+                else:
+                    if float(parameter) != comp_value:
+                        match = False
+                        break
+            if match:
+                filenames.append(file)
+
     return filenames
 
 class Trajectory:
@@ -447,7 +480,7 @@ def main():
     configuration = generate_configuration(10, True)
     propagate(configuration, n_timestep=10000, J=1, B=0, temperature=1, n_output=10, filename="out.json", mute_output=False)
     Trajectory.from_file("out.json").animate()
-    print(filter_trajectories(1, 2, 3, 4, "test"))
+    print(filter_trajectories(N=[0, 1, 2], J=2, B=3, temperature=4, folder="."))
 
 if __name__ == "__main__":
     main()
