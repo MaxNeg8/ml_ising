@@ -463,6 +463,30 @@ class Trajectory:
 
         plt.show()     
 
+    def magnetization(self, r_equil : float = 0.0, normalize : bool = True) -> float:
+        """
+        Computes the average magnetization (per spin) of the trajectory
+
+        Parameters
+        ----------
+        r_equil : float
+            Ratio of equilibration steps / total steps. The specified percentage of steps will be
+            discarded as equilibration steps.
+
+        normalize : bool
+            If True, returns the average magnetization per spin instead of the total magnetization
+
+        Returns
+        -------
+        magnetization : float
+            Avergae magnetization per spin if normalize is True, else total magnetization
+        """
+        start_index = int(np.ceil(r_equil*self.n_timestep))
+        magnetizations = 0
+        for i in range(start_index, self.n_timestep):
+            magnetizations += magnetization(self.trajectory[i], normalize=False) # Avoid rounding issues due to small numbers
+        return magnetizations/(self.n_timestep - start_index)/(self.N**2 if normalize else 1.0)
+
     @property
     def trajectory(self):
         return self._trajectory
@@ -479,7 +503,8 @@ class Trajectory:
 def main():
     configuration = generate_configuration(10, True)
     propagate(configuration, n_timestep=10000, J=1, B=0, temperature=1, n_output=10, filename="out.json", mute_output=False)
-    Trajectory.from_file("out.json").animate()
+    traj = Trajectory.from_file("out.json")
+    print(traj.magnetization(r_equil=0.2))
     print(filter_trajectories(N=[0, 1, 2], J=2, B=3, temperature=4, folder="."))
 
 if __name__ == "__main__":
