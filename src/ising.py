@@ -438,6 +438,8 @@ class Trajectory:
     
         json_dict["changes"] = [np.nonzero(row)[0].tolist() for row in difference]
     
+        os.makedirs(filename, exist_ok=True)
+
         with open(filename, "w") as file:
             json.dump(json_dict, file)
 
