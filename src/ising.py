@@ -273,7 +273,7 @@ def generate_trajectory_name(N : int, J : float, B : float, temperature : float,
 
 def filter_trajectories(N : Union[int, List[int], tuple[int, int]], J : Union[float, List[float], tuple[float, float]], 
                         B : Union[float, List[float], tuple[float, float]], temperature : Union[float, List[float], tuple[float, float]], 
-                        folder : Union[str, List[str]] = "trajectories"):
+                        folder : Union[str, List[str]] = "trajectories") -> dict:
     """
     Function that filters saved trajectories (that use the naming scheme defined in function generate_trajectory_name()) by
     the relevant simulation parameters and returns their file names.
@@ -304,15 +304,16 @@ def filter_trajectories(N : Union[int, List[int], tuple[int, int]], J : Union[fl
 
     Returns
     -------
-    filenames : List[str]
-        A list of file names that match the filter parameters
+    filenames : dict
+        A dictionary of file names that match the filter parameters as keys and extracted simulation parameters as a dictionary
+        as values
     """
     if isinstance(folder, str):
         folder = [folder]
 
     parameters = [N, J, B, temperature]
 
-    filenames = []
+    filenames = {}
     for dir in folder:
         if not os.path.isdir(dir):
             continue # Skip folder if it does not exist
@@ -343,11 +344,11 @@ def filter_trajectories(N : Union[int, List[int], tuple[int, int]], J : Union[fl
                         match = False
                         break
                 else:
-                    if float(parameter) != comp_value:
+                    if not np.isclose(float(parameter), comp_value):
                         match = False
                         break
             if match:
-                filenames.append(file)
+                filenames[file] = {"N" : float(param_values[0]), "J" : float(param_values[1]), "B" : float(param_values[2]), "temperature" : float(param_values[3])}
 
     return filenames
 
