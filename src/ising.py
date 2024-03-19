@@ -401,6 +401,30 @@ def filter_trajectories(N : Union[int, List[int], tuple[int, int]], J : Union[fl
 
     return filenames
 
+def correlate(signal_A : np.ndarray, signal_B : np.ndarray) -> np.ndarray:
+    """
+    Computes the correlation function between two signals A and B
+
+    Parameters
+    ----------
+    signal_A : np.ndarray
+        Signal A that will be correlated with signal B
+    
+    signal_B : np.ndarray
+        Signal B that will be correlated with signal A
+
+    Returns
+    -------
+    correlation : np.ndarray
+        The computed correlation function of the two signals
+    """
+    N = len(signal_A)
+
+    signal_A = signal_A.copy() - np.mean(signal_A)
+    signal_B = signal_B.copy() - np.mean(signal_B)
+
+    return np.correlate(signal_A, signal_B, mode="full")[-N:] / (np.arange(N, 0, -1) * np.std(signal_A)*np.std(signal_B))
+       
 class Trajectory:
     """
     Class that represents a simulation trajectory for the 2D ising model. It allows for
@@ -516,7 +540,7 @@ class Trajectory:
 
         plt.show()     
 
-    def magnetization(self, r_equil : float = 0.0, normalize : bool = True, abs : bool = False) -> float:
+    def magnetization(self, r_equil : float = 0.0, normalize : bool = True, abs : bool = False, n_blocks : int = 1) -> float:
         """
         Computes the average magnetization (per spin) of the trajectory
 
@@ -532,17 +556,30 @@ class Trajectory:
         abs : bool
             If True, computes the absolute value of the magnetization instead
 
+        n_blocks : int
+            Number of blocks to use for block averaging. Default is 1, so no block averaging will be done.
+
         Returns
         -------
         magnetization : float
             Avergae magnetization per spin if normalize is True, else total magnetization
         """
         start_index = int(np.ceil(r_equil*self.n_timestep))
-        magnetizations = 0
+        length = self.n_timestep - start_index
+        if length < n_blocks:
+            n_blocks = length
+        block_size = length//n_blocks
+        residuals = length%n_blocks
+
+        magnetizations = []
         for i in range(start_index, self.n_timestep):
             mag = magnetization(self.trajectory[i], normalize=False) # Avoid rounding issues due to small numbers
-            magnetizations += np.abs(mag) if abs else mag
-        return magnetizations/(self.n_timestep - start_index)/(self.N**2 if normalize else 1.0)
+            magnetizations.append(np.abs(mag) if abs else mag)
+
+        magnetizations = [magnetizations[i*block_size:(i+1)*block_size] + (magnetizations[-residuals:] if residuals > 0 and i == n_blocks - 1 else []) for i in range(n_blocks)]
+        block_avg = np.mean([np.mean(magnetization) for magnetization in magnetizations])
+
+        return block_avg/(self.N**2 if normalize else 1.0)
 
     @property
     def trajectory(self):
