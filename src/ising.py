@@ -516,7 +516,7 @@ class Trajectory:
 
         plt.show()     
 
-    def magnetization(self, r_equil : float = 0.0, normalize : bool = True) -> float:
+    def magnetization(self, r_equil : float = 0.0, normalize : bool = True, abs : bool = False) -> float:
         """
         Computes the average magnetization (per spin) of the trajectory
 
@@ -529,6 +529,9 @@ class Trajectory:
         normalize : bool
             If True, returns the average magnetization per spin instead of the total magnetization
 
+        abs : bool
+            If True, computes the absolute value of the magnetization instead
+
         Returns
         -------
         magnetization : float
@@ -537,7 +540,8 @@ class Trajectory:
         start_index = int(np.ceil(r_equil*self.n_timestep))
         magnetizations = 0
         for i in range(start_index, self.n_timestep):
-            magnetizations += magnetization(self.trajectory[i], normalize=False) # Avoid rounding issues due to small numbers
+            mag = magnetization(self.trajectory[i], normalize=False) # Avoid rounding issues due to small numbers
+            magnetizations += np.abs(mag) if abs else mag
         return magnetizations/(self.n_timestep - start_index)/(self.N**2 if normalize else 1.0)
 
     @property
