@@ -100,7 +100,7 @@ def compute_flip_energy(configuration : np.ndarray, position : tuple[int, int], 
     -------
     difference : float
         The energy difference that needs to be added to the old energy if the spin at the given position
-        were to be flipped
+        was to be flipped
 
     Example
     -------
@@ -116,6 +116,43 @@ def compute_flip_energy(configuration : np.ndarray, position : tuple[int, int], 
 
     sum_neighbours = configuration[(i + 1)%N, j] + configuration[(i - 1)%N, j] + configuration[i, (j + 1)%N] + configuration[i, (j - 1)%N]
     return 2 * J * configuration[i, j] * sum_neighbours + 2 * B * configuration[i, j]
+
+@jit(nopython=True)
+def compute_row_col_flip_energy(configuration : np.ndarray, row_col : str, row_col_index : int, J : float, B : float) -> float:
+    """ 
+    Function that computes the change in energy if and entire row or column of spins is flipped
+
+    Parameters
+    ----------
+    configuration : np.ndarray
+        The configuration for which to compute the energy difference after spin flips. Must be a 2D NumPy 
+        integer array with entries in {-1, 1}.
+
+    row_col : str
+        Either "row" if row is to be flipped or "col" for column flip
+
+    row_col_index : int
+        The index of the row or column to be flipped
+
+    J : float
+        The positive interaction constant for the spins
+
+    B : float
+        The strength of the outer magnetic field
+
+    Returns
+    -------
+    difference : float
+        The energy difference that needs to be added to the old energy if the row/col of spins at the given index
+        was to be flipped
+    """
+    N = configuration.shape[0]
+    if row_col == "row":
+        sum_neighbours = configuration[(row_col_index + 1)%N] + configuration[(row_col_index - 1)%N]
+        return 2 * J * np.sum(configuration[row_col_index] * sum_neighbours) + 2 * B * np.sum(configuration[row_col_index])
+    else:
+        sum_neighbours = configuration[:, (row_col_index + 1)%N] + configuration[:, (row_col_index - 1)%N]
+        return 2 * J * np.sum(configuration[:, row_col_index] * sum_neighbours) + 2 * B * np.sum(configuration[:, row_col_index])
 
 @jit(nopython=True)
 def magnetization(configuration : np.ndarray, normalize : bool=True) -> float:
@@ -199,15 +236,27 @@ def propagate(configuration : np.ndarray, n_timestep : int, J : float, B : float
         configuration = configuration.copy()
     
     for i in range(n_timestep):
-        spin_to_flip = tuple(np.random.randint(0, N, size=2))
+        if np.random.rand() > 0.1: # Attempt single spin flip
+            spin_to_flip = tuple(np.random.randint(0, N, size=2))
         
-        dE = compute_flip_energy(configuration, spin_to_flip, J, B)
+            dE = compute_flip_energy(configuration, spin_to_flip, J, B)
      
-        if dE <= 0 or np.random.rand() < np.exp(-dE/temperature): # Only compute exponential if dE > 0, otherwise always accept
-            configuration[spin_to_flip[0], spin_to_flip[1]] *= -1
-            E += dE
-            accepted += 1
-        
+            if dE <= 0 or np.random.rand() < np.exp(-dE/temperature): # Only compute exponential if dE > 0, otherwise always accept
+                configuration[spin_to_flip[0], spin_to_flip[1]] *= -1
+                E += dE
+                accepted += 1
+        else: # Attempt row or column spin flip
+            row_col_selected = np.random.randint(0, N)
+            row_col = "row" if i % 2 else "col"
+            dE = compute_row_col_flip_energy(configuration, row_col, row_col_selected, J, B)
+            if dE <= 0 or np.random.rand() < np.exp(-dE/temperature): # Only compute exponential if dE > 0, otherwise always accept
+                if row_col == "row":
+                    configuration[row_col_selected, :] *= -1
+                else:
+                    configuration[:, row_col_selected] *= -1
+                E += dE
+                accepted += 1
+
         if n_output and i % n_output == 0:
             trajectory[i//n_output] = configuration
         
@@ -438,7 +487,8 @@ class Trajectory:
     
         json_dict["changes"] = [np.nonzero(row)[0].tolist() for row in difference]
     
-        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        if len(os.path.dirname(filename)) > 0:
+            os.makedirs(os.path.dirname(filename), exist_ok=True)
 
         with open(filename, "w") as file:
             json.dump(json_dict, file)
@@ -507,6 +557,7 @@ def main():
     configuration = generate_configuration(10, True)
     propagate(configuration, n_timestep=10000, J=1, B=0, temperature=1, n_output=10, filename="out.json", mute_output=False)
     traj = Trajectory.from_file("out.json")
+    traj.animate()
     print(traj.magnetization(r_equil=0.2))
     print(filter_trajectories(N=[0, 1, 2], J=2, B=3, temperature=4, folder="."))
 
