@@ -19,7 +19,7 @@ def simulate(N, J, B, temperature):
 
 # Different B simulations at different temperatures
 if __name__ == "__main__":
-    temperatures = [0.3]#[0.001, 0.3, 1.0, 2.0]
+    temperatures = [0.001, 0.3, 1.0, 2.0]
 
     J = 0
     Bs = np.round(np.arange(-2.0, 2.0, 0.01), 2)
