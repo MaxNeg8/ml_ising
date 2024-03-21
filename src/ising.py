@@ -112,7 +112,7 @@ def compute_flip_energy(configuration : np.ndarray, position : tuple[int, int], 
 
     """
     N = configuration.shape[0]
-    i, j = position
+    i, j = position[0], position[1]
 
     sum_neighbours = configuration[(i + 1)%N, j] + configuration[(i - 1)%N, j] + configuration[i, (j + 1)%N] + configuration[i, (j - 1)%N]
     return 2 * J * configuration[i, j] * sum_neighbours + 2 * B * configuration[i, j]
@@ -176,8 +176,228 @@ def magnetization(configuration : np.ndarray, normalize : bool=True) -> float:
         return np.mean(configuration)
     return np.sum(configuration)
 
+@jit(nopython=True)
+def _wolff_build_cluster(configuration : np.ndarray, start : tuple[int, int], p_add : float, B : float) -> Optional[list]:
+    """
+    Helper function that builds a cluster of spins with same orientation for the Wolff algorithm and, if B = 0, performs
+    the cluster flip
 
-def propagate(configuration : np.ndarray, n_timestep : int, J : float, B : float, temperature : float, n_output : int=0, filename : str=None, copy : bool=False, mute_output : bool = True) -> Optional[np.ndarray]:
+    Parameters
+    ----------
+    configuration : np.ndarray
+        Spin configuration to build clusters for
+
+    start : tuple[int, int]
+        Spin position at which to start building the cluster
+
+    p_add : float
+        Probability of adding a spin to the cluster if it has the right orientation
+
+    B 
+
+    Returns
+    -------
+    If B != 0:
+        cluster : list
+            A list of all the spin indices (row, col) in the cluster that was built
+
+    """
+    N = configuration.shape[0]
+    sign = configuration[start[0], start[1]]
+    to_be_tried = [start]
+    tried = []
+
+    return_cluster = not np.isclose(B, 0)
+
+    if return_cluster:
+        cluster = [start]
+    else:
+        configuration[start[0], start[1]] *= -1
+    while len(to_be_tried) > 0:
+        row, col = to_be_tried.pop()
+
+        neighbours = [((row + 1)%N, col), ((row - 1)%N, col), (row, (col + 1)%N), (row, (col - 1)%N)]
+        to_add = []
+        for n in neighbours:
+            if n in tried:
+                continue
+            elif return_cluster and n in cluster:
+                continue
+            elif configuration[n[0], n[1]] != sign:
+                continue
+            elif np.random.rand() < p_add:
+                to_add.append(n)
+                if return_cluster:
+                    cluster.append(n)
+                else:
+                    configuration[n[0], n[1]] *= -1
+            else:
+                tried.append(n)
+        to_be_tried += to_add
+
+    if return_cluster:
+        return cluster
+
+def _wolff_propagate(configuration : np.ndarray, n_timestep : int, J : float, B : float, temperature : float, n_output : int,
+                            mute_output : bool) -> Optional[np.ndarray]:
+    """
+    Function that propagates a given configuration using the Wolff algorithm (cluster spin flips).
+
+    NOT TO BE USED INDIVIDUALLY BUT ONLY THROUGH THE WRAPPER FUNCTION propagate()
+
+    Parameters
+    ----------
+    configuration : np.ndarray
+        The configuration to propagate
+
+    n_timestep : int
+        The number of timesteps to propagate for
+    
+    J : float
+        The positive interaction constant for the spins
+
+    B : float
+        The strength of the outer magnetic field
+
+    temperature : float
+        The temperature to use for the Metropolis criterion
+
+    n_output : int
+        The number of timesteps to wait between outputing trajectory frames
+
+    mute_output : bool
+        If True, console output is muted.
+
+    Returns
+    -------
+        None, if n_output is 0. Otherwise, the trajectory produced
+    """
+    if n_output:
+        n_frames = int(np.ceil(n_timestep/n_output))
+        trajectory = np.empty((n_frames, configuration.shape[0], configuration.shape[1]), dtype=int)
+
+    N = configuration.shape[0]
+
+    prefix = f"[N={N},J={J},B={B}] "
+    if not mute_output:
+        start_simulation = time.time()
+        elapsed = 0
+    
+    p_add = 1 - np.exp(-2*J/temperature)
+
+    for i in range(n_timestep):
+        start = tuple(np.random.randint(0, N, size=2))
+
+        cluster = _wolff_build_cluster(configuration, start, p_add, B)
+
+        if cluster != None and len(cluster) > 0:
+            rows, cols = zip(*cluster)
+            dE = 2*B*np.sum(configuration[rows, cols])
+            if dE < 0 or np.random.rand() < np.exp(-dE/temperature):
+                configuration[rows, cols] *= -1
+
+        if n_output and i % n_output == 0:
+            trajectory[i//n_output] = configuration
+        
+        if not mute_output:
+            if i % 300 == 0:
+                elapsed = time.time() - start_simulation
+            print(prefix, f"Simulation progress: {i/n_timestep*100:0.1f}%, Elapsed: {elapsed:0.1f} s\r", end="")
+    
+    if not mute_output:
+        print(" "*os.get_terminal_size()[0] + "\r", end="")
+        print(prefix, f"Done. Elapsed: {elapsed:0.1f} s")
+
+    if n_output:
+        return trajectory
+
+def _metropolis_propagate(configuration : np.ndarray, n_timestep : int, J : float, B : float, temperature : float, n_output : int,
+                            mute_output : bool) -> Optional[np.ndarray]:
+    """
+    Function that propagates a given configuration using the Metropolis algorithm (single spin flips).
+
+    NOT TO BE USED INDIVIDUALLY BUT ONLY THROUGH THE WRAPPER FUNCTION propagate()
+
+    Parameters
+    ----------
+    configuration : np.ndarray
+        The configuration to propagate
+
+    n_timestep : int
+        The number of timesteps to propagate for
+    
+    J : float
+        The positive interaction constant for the spins
+
+    B : float
+        The strength of the outer magnetic field
+
+    temperature : float
+        The temperature to use for the Metropolis criterion
+
+    n_output : int
+        The number of timesteps to wait between outputing trajectory frames
+
+    mute_output : bool
+        If True, console output is muted.
+
+    Returns
+    -------
+        None, if n_output is 0. Otherwise, the trajectory produced
+    """
+    if n_output:
+        n_frames = int(np.ceil(n_timestep/n_output))
+        trajectory = np.empty((n_frames, configuration.shape[0], configuration.shape[1]), dtype=int)
+
+    N = configuration.shape[0]
+
+    E = compute_energy(configuration, J, B)
+    accepted = 0
+
+    prefix = f"[N={N},J={J},B={B}] "
+    if not mute_output:
+        start_simulation = time.time()
+        elapsed = 0
+    
+    for i in range(n_timestep):
+        if np.random.rand() > 0.1: # Attempt single spin flip
+            spin_to_flip = np.random.randint(0, N, size=2)
+        
+            dE = compute_flip_energy(configuration, spin_to_flip, J, B)
+     
+            if dE <= 0 or np.random.rand() < np.exp(-dE/temperature): # Only compute exponential if dE > 0, otherwise always accept
+                configuration[spin_to_flip[0], spin_to_flip[1]] *= -1
+                E += dE
+                accepted += 1
+        else: # Attempt row or column spin flip
+            row_col_selected = np.random.randint(0, N)
+            row_col = "row" if i % 2 else "col"
+            dE = compute_row_col_flip_energy(configuration, row_col, row_col_selected, J, B)
+            if dE <= 0 or np.random.rand() < np.exp(-dE/temperature): # Only compute exponential if dE > 0, otherwise always accept
+                if row_col == "row":
+                    configuration[row_col_selected, :] *= -1
+                else:
+                    configuration[:, row_col_selected] *= -1
+                E += dE
+                accepted += 1
+
+        if n_output and i % n_output == 0:
+            trajectory[i//n_output] = configuration
+        
+        if not mute_output:
+            if i % 300 == 0:
+                elapsed = time.time() - start_simulation
+            print(prefix, f"Simulation progress: {i/n_timestep*100:0.1f}%, Acceptance probability: {accepted/(i+1):0.4f} ({accepted}/{i+1}), Elapsed: {elapsed:0.1f} s\r", end="\r", flush=True)
+    
+    if not mute_output:
+        print(" "*os.get_terminal_size()[0], end="\r")
+        print(prefix, f"Done. Acceptance probability: {accepted/n_timestep:0.4f} ({accepted}/{n_timestep}), Elapsed: {elapsed:0.1f} s", flush=True)
+
+    if n_output:
+        return trajectory
+
+def propagate(configuration : np.ndarray, n_timestep : int, J : float, B : float, temperature : float, n_output : int=0, 
+            filename : str=None, algorithm : str = "metropolis", copy : bool=False, mute_output : bool = True) -> Optional[np.ndarray]:
     """
     Function that propagates a spin configuration in the Ising model using Markov Chain Monte Carlo and the Metropolis algorithm
 
@@ -204,6 +424,9 @@ def propagate(configuration : np.ndarray, n_timestep : int, J : float, B : float
     filename : str
         The name of the file to output the trajectory to
 
+    algorithm : str
+        Algorithm used for propagation (either "metropolis" or "wolff")
+
     copy : bool
         If True, creates a copy of the original array instead of overwriting it. The propagated copy
         is then returned.
@@ -215,59 +438,17 @@ def propagate(configuration : np.ndarray, n_timestep : int, J : float, B : float
     -------
         None, if copy is False. Otherwise, the propagated copy of the configuration.
     """
-
+    algorithm = algorithm.lower()
+    assert algorithm in ["metropolis", "wolff"], f"Invalid algorithm '{algorithm}'"
     assert (n_output == 0 and filename == None) or (n_output != 0 and filename != None), "If you provide a filename or an n_output > 0, you must also provide the other"
-
-    if n_output:
-        n_frames = int(np.ceil(n_timestep/n_output))
-        trajectory = np.empty((n_frames, configuration.shape[0], configuration.shape[1]), dtype=int)
-
-    N = configuration.shape[0]
-
-    E = compute_energy(configuration, J, B)
-    accepted = 0
-
-    prefix = f"[N={N},J={J},B={B}] "
-    if not mute_output:
-        start_simulation = time.time()
-        elapsed = 0
 
     if copy:
         configuration = configuration.copy()
-    
-    for i in range(n_timestep):
-        if np.random.rand() > 0.1: # Attempt single spin flip
-            spin_to_flip = tuple(np.random.randint(0, N, size=2))
-        
-            dE = compute_flip_energy(configuration, spin_to_flip, J, B)
-     
-            if dE <= 0 or np.random.rand() < np.exp(-dE/temperature): # Only compute exponential if dE > 0, otherwise always accept
-                configuration[spin_to_flip[0], spin_to_flip[1]] *= -1
-                E += dE
-                accepted += 1
-        else: # Attempt row or column spin flip
-            row_col_selected = np.random.randint(0, N)
-            row_col = "row" if i % 2 else "col"
-            dE = compute_row_col_flip_energy(configuration, row_col, row_col_selected, J, B)
-            if dE <= 0 or np.random.rand() < np.exp(-dE/temperature): # Only compute exponential if dE > 0, otherwise always accept
-                if row_col == "row":
-                    configuration[row_col_selected, :] *= -1
-                else:
-                    configuration[:, row_col_selected] *= -1
-                E += dE
-                accepted += 1
 
-        if n_output and i % n_output == 0:
-            trajectory[i//n_output] = configuration
-        
-        if not mute_output:
-            if i % 300 == 0:
-                elapsed = time.time() - start_simulation
-            print(prefix, f"Simulation progress: {i/n_timestep*100:0.1f}%, Acceptance probability: {accepted/(i+1):0.4f} ({accepted}/{i+1}), Elapsed: {elapsed:0.1f} s\r", end="")
-    
-    if not mute_output:
-        print(" "*os.get_terminal_size()[0] + "\r", end="")
-        print(prefix, f"Done. Acceptance probability: {accepted/n_timestep:0.4f} ({accepted}/{n_timestep}), Elapsed: {elapsed:0.1f} s")
+    if algorithm == "metropolis":
+        trajectory = _metropolis_propagate(configuration, n_timestep, J, B, temperature, n_output, mute_output)
+    else:
+        trajectory = _wolff_propagate(configuration, n_timestep, J, B, temperature, n_output, mute_output)
 
     if n_output:
         Trajectory(trajectory).save(filename)
@@ -275,7 +456,7 @@ def propagate(configuration : np.ndarray, n_timestep : int, J : float, B : float
     if copy:
         return configuration
 
-def plot_configuration(configuration : np.ndarray) -> None:
+def plot_configuration(configuration : np.ndarray, cluster : list = None) -> None:
     """
     Function that plots a given configuration as a heatmap.
 
@@ -283,10 +464,16 @@ def plot_configuration(configuration : np.ndarray) -> None:
     ----------
     configuration : np.ndarray
         The configuration to plot
+
+    cluster : list
+        Cluster to highlight
     """
     fig, ax = plt.subplots(1, 1, figsize=(7, 7))
 
     ax.imshow(configuration, cmap="summer", vmin=-1, vmax=1)
+    if cluster != None:
+        for row, col in cluster:
+            ax.plot([col-0.5, col+0.5, col+0.5, col-0.5, col-0.5],[row-0.5, row-0.5, row+0.5, row+0.5, row-0.5], color='red')
     ax.set_axis_off()
 
     plt.show()
@@ -595,12 +782,10 @@ class Trajectory:
 
 
 def main():
-    configuration = generate_configuration(10, True)
-    propagate(configuration, n_timestep=10000, J=1, B=0, temperature=1, n_output=10, filename="out.json", mute_output=False)
+    configuration = generate_configuration(100, True)
+    propagate(configuration, n_timestep=1000, J=1, B=0, temperature=0.1, n_output=1, filename="out.json", mute_output=False, algorithm="wolff")
     traj = Trajectory.from_file("out.json")
     traj.animate()
-    print(traj.magnetization(r_equil=0.2))
-    print(filter_trajectories(N=[0, 1, 2], J=2, B=3, temperature=4, folder="."))
 
 if __name__ == "__main__":
     main()
