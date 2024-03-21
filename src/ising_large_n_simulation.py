@@ -146,7 +146,7 @@ def compute_row_col_flip_energy(configuration : np.ndarray, row_col : str, row_c
         return 2 * J * np.sum(configuration[:, row_col_index] * sum_neighbours) + 2 * B * np.sum(configuration[:, row_col_index])
     
 def write_to_file(temperature, magnetization):
-    filename = "out.csv"
+    filename = "ising_analysis_traj/out.csv"
     with open(filename, "a") as file:
         file.write(f"{temperature},{magnetization}\n")
 
