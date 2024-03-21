@@ -13,9 +13,9 @@ def simulate(N, J, B, temperature):
         for N in Ns:
             for J in Js:
                 for B in Bs:
-                    configuration = generate_configuration(N=N, random=False)
-                    filename = generate_trajectory_name(N=N, J=J, B=B, temperature=temperature, folder="ising_analysis_traj")
-                    propagate(configuration=configuration, n_timestep=100000, n_output=100, J=J, B=B, temperature=temperature, filename=filename)
+                    configuration = generate_configuration(N=N, random=True)
+                    filename = generate_trajectory_name(N=N, J=J, B=B, temperature=temperature, folder="ising_analysis_wolff_traj")
+                    propagate(configuration=configuration, n_timestep=1000, n_output=1, J=J, B=B, temperature=temperature, filename=filename, algorithm="wolff")
 
 # Different B simulations at different temperatures
 if __name__ == "__main__":

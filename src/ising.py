@@ -300,7 +300,7 @@ def _wolff_propagate(configuration : np.ndarray, n_timestep : int, J : float, B 
             trajectory[i//n_output] = configuration
         
         if not mute_output:
-            if i % 300 == 0:
+            if i % 10 == 0:
                 elapsed = time.time() - start_simulation
             print(prefix, f"Simulation progress: {i/n_timestep*100:0.1f}%, Elapsed: {elapsed:0.1f} s\r", end="")
     
