@@ -205,7 +205,6 @@ def _wolff_build_cluster(configuration : np.ndarray, start : tuple[int, int], p_
     N = configuration.shape[0]
     sign = configuration[start[0], start[1]]
     to_be_tried = [start]
-    tried = []
 
     return_cluster = not np.isclose(B, 0)
 
@@ -219,20 +218,16 @@ def _wolff_build_cluster(configuration : np.ndarray, start : tuple[int, int], p_
         neighbours = [((row + 1)%N, col), ((row - 1)%N, col), (row, (col + 1)%N), (row, (col - 1)%N)]
         to_add = []
         for n in neighbours:
-            if n in tried:
+            if return_cluster and n in cluster:
                 continue
-            elif return_cluster and n in cluster:
+            if configuration[n[0], n[1]] != sign:
                 continue
-            elif configuration[n[0], n[1]] != sign:
-                continue
-            elif np.random.rand() < p_add:
+            if np.random.rand() < p_add:
                 to_add.append(n)
                 if return_cluster:
                     cluster.append(n)
                 else:
                     configuration[n[0], n[1]] *= -1
-            else:
-                tried.append(n)
         to_be_tried += to_add
 
     if return_cluster:
