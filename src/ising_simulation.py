@@ -18,6 +18,7 @@ def simulate(N, J, B, temperature):
                     propagate(configuration=configuration, n_timestep=1000, n_output=1, J=J, B=B, temperature=temperature, filename=filename, algorithm="wolff")
 
 # Different B simulations at different temperatures
+
 if __name__ == "__main__":
     temperatures = [0.001, 0.3, 1.0, 2.0]
 
@@ -47,13 +48,13 @@ if __name__ == "__main__":
 # Different temperature simulations
 """
 if __name__ == "__main__":
-    temperatures = np.round(np.arange(0.01, 3.51, 0.01), 2)
+    temperatures = np.round(np.arange(0.01, 4.01, 0.01), 2)
 
     J = 1
     B = 0
     N = 50
 
-    processes = 8
+    processes = 4
 
     # Divide temperatures to simulate in blocks of mostly equal size (+/- 1) according to number of processes
     n_temps = len(temperatures)
