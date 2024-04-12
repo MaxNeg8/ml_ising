@@ -1,3 +1,6 @@
+import sys
+sys.path.append("../")
+
 from ising import generate_configuration, propagate, Trajectory, filter_trajectories, generate_trajectory_name, plot_configuration
 from multiprocessing import Process
 import numpy as np
