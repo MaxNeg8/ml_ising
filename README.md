@@ -9,10 +9,10 @@ respect to the simulation temperature.
 The file `ising.py` contains a multitude of functions that allow for the simulation of the 2D Ising model. For this,
 we assume a hamiltonian of the form
 
-$$\mathcal{H} = - J \sum_{\<i\, j\>} s_i s_j - B \sum_{i = 1}^{N^2} s_i$$
+$$\mathcal{H} = - J \sum_{i\, j}^{} s_i s_j - B \sum_{i = 1}^{N^2} s_i$$
 
 where $J$ is the spin coupling constant, $B$ the outer magnetic field, $s_i$ a spin in the system, $N$ the length of
-the square box and $\sum_{<i, j>}$ denotes the sum over all nearest neighbours.
+the square box and $\sum_{i\, j}^{}$ denotes the sum over all nearest neighbours.
 
 ### Generating a configuration
 
