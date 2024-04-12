@@ -193,7 +193,8 @@ def _wolff_build_cluster(configuration : np.ndarray, start : tuple[int, int], p_
     p_add : float
         Probability of adding a spin to the cluster if it has the right orientation
 
-    B 
+    B : float
+        The strength of the outer magnetic field
 
     Returns
     -------
@@ -223,12 +224,11 @@ def _wolff_build_cluster(configuration : np.ndarray, start : tuple[int, int], p_
             if configuration[n[0], n[1]] != sign:
                 continue
             if np.random.rand() < p_add:
-                to_add.append(n)
+                to_be_tried.append(n)
                 if return_cluster:
                     cluster.append(n)
                 else:
                     configuration[n[0], n[1]] *= -1
-        to_be_tried += to_add
 
     if return_cluster:
         return cluster
@@ -394,7 +394,7 @@ def _metropolis_propagate(configuration : np.ndarray, n_timestep : int, J : floa
 def propagate(configuration : np.ndarray, n_timestep : int, J : float, B : float, temperature : float, n_output : int=0, 
             filename : str=None, algorithm : str = "metropolis", copy : bool=False, mute_output : bool = True) -> Optional[np.ndarray]:
     """
-    Function that propagates a spin configuration in the Ising model using Markov Chain Monte Carlo and the Metropolis algorithm
+    Function that propagates a spin configuration in the Ising model using Markov Chain Monte Carlo and the Metropolis or Wolff algorithm
 
     Parameters
     ----------
