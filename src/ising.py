@@ -217,7 +217,7 @@ def _wolff_build_cluster(configuration : np.ndarray, start : tuple[int, int], p_
         row, col = to_be_tried.pop()
 
         neighbours = [((row + 1)%N, col), ((row - 1)%N, col), (row, (col + 1)%N), (row, (col - 1)%N)]
-        to_add = []
+       
         for n in neighbours:
             if return_cluster and n in cluster:
                 continue
