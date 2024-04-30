@@ -12,6 +12,8 @@ import json
 import os
 import time
 
+import struct
+
 def generate_configuration(N : int, random : bool=True) -> np.ndarray:
     """
     Function that generates a 2D spin configuration for simulation using
@@ -775,6 +777,115 @@ class Trajectory:
     def n_timestep(self):
         return self._n_timestep
 
+def save_configurations_bin(filename : str, configurations : np.ndarray, allow_overwrite : bool = False) -> None:
+    """
+    Used to save a list of configurations in binary form in order to consume as
+    little space as possible. The file format will be the following:
+
+    2 bytes: Unsigned short, representing N (edge length) of the configurations
+    4 bytes: Unsigned int, storing the number of configurations saved in the file
+    Rest of the file: Configurations, where each byte represents 8 spins in binary (spin -1 is 0, spin 1 is 1)
+    The last byte will be padded with zeros if necessary
+
+    Paramerers
+    ----------
+    filename : str
+        The name of the file (without extention, .ising will be appended automatically)
+
+    configurations : np.ndarray
+        Configurations to be saved in the file. If configurations.ndim == 2: Only one configuration
+        will be saved. If configurations.ndim == 3: configurations[i, ...] will be treated as the
+        ith configuration
+
+    allow_overwrite : bool
+        Whether or not to allow an existing file with the same name to be overwritten (default: False)
+    """
+    filename += ".ising"
+
+    if os.path.isfile(filename) and not allow_overwrite:
+        raise ValueError(f"File {filename} exists")
+
+    if configurations.ndim == 2:
+        configs = [configurations.flatten()]
+        assert configurations.shape[0] == configurations.shape[1], "Must be square lattice"
+        N = configurations.shape[0]
+    elif configurations.ndim == 3:
+        configs = [configurations[i].flatten() for i in range(configurations.shape[0])]
+        assert configurations.shape[1] == configurations.shape[2], f"Must be square lattice (got {configurations.shape[1]}x{configurations.shape[2]})"
+        N = configurations.shape[1]
+    else:
+        raise ValueError("configurations.ndim must be 2 or 3")
+
+    assert 0 < N < 2**16, "N must be between 1 and 65,535 to fit into an unsigned short"
+
+    byte_array = [] # Prepare array for storing all spins, each entry is a byte corresponding to 8 spin values
+    current = "" # The current byte being formed
+    for config in configs:
+        for spin in config:
+            current += str((spin+1)//2) # Convert -1/1 to 0/1 and append to current string
+            if len(current) == 8:
+                byte_array.append(int(current, 2))
+                current = ""
+    if len(current) != 0:
+        current += "0"*(8 - len(current)) # Pad the last byte with zeros at the end
+        byte_array.append(int(current, 2))
+
+    # All bytes are stored with little endian
+    N_ushort = struct.pack("<H", N) # Store edge length N as unsigned short (2 byte)
+    N_configs = struct.pack("<I", len(configs)) # Store number of configurations as unsigned int (4 byte)
+ 
+    with open(filename, "wb") as file:
+        file.write(N_ushort)
+        file.write(N_configs)
+        file.write(struct.pack("<" + "B"*len(byte_array), *byte_array)) # Write all bytes as unsigned chars
+
+def load_configurations_bin(filename : str) -> np.ndarray:
+    """
+    Loads the configurations saved in binary form using save_configurations_bin function and
+    returns the loaded data as numpy array (same as input value to the save function)
+
+    Paramerers
+    ----------
+    filename : str
+        The name of the file (including .ising file ending) to be loaded
+
+    Returns
+    -------
+    configurations : np.ndarray
+        The loaded configurations (2-dim array if only one configuration was saved,
+        3-dim array if multiple configurations were saved, in which case configurations[i]
+        is the ith configuration of shape (N, N))
+    """
+    if not os.path.isfile(filename):
+        raise ValueError(f"File {filename} does not exist")
+
+    N = None
+    N_configs = None
+    read_bytes = None
+    with open(filename, "rb") as file:
+        N = struct.unpack("<H", file.read(2))[0] # Retrieve the edge length (N)
+        N_configs = struct.unpack("<I", file.read(4))[0] # Retrieve the number of stored configurations
+        data = file.read()
+        read_bytes = struct.unpack("<" + "B"*len(data), data) # Retrieve the spins values
+    
+    if N_configs > 1:
+        configurations = np.empty((N_configs, N, N), dtype=int) # Prepare the returned configurations
+        for config in range(N_configs):
+            for spin in range(N**2):
+                bit = config*N**2 + spin # The total bit index of the spin
+                byte = bit // 8 # The byte in which to find the spin
+                # Here, we perform some bit manipulation in order to get the value of the bit
+                # corresponding to the current spin and transforming it back from 0/1 to -1/1
+                configurations[config, spin//N, spin%N] = ((read_bytes[byte] >> (7-bit%8)) & 1)*2-1
+    else:
+        configurations = np.empty((N, N), dtype=int) # Prepare the returned configurations
+        for spin in range(N**2):
+            byte = spin // 8 # The byte in which to find the spin
+            # Here, we perform some bit manipulation in order to get the value of the bit
+            # corresponding to the current spin and transforming it back from 0/1 to -1/1
+            configurations[spin//N, spin%N] = ((read_bytes[byte] >> (7-spin%8)) & 1)*2-1
+    return configurations
+    
 
 def main():
     configuration = generate_configuration(100, True)
