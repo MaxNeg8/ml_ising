@@ -35,18 +35,19 @@ def simulate(N: int, J : float, B : float, temperature : float, n_samples : int 
         for N in Ns:
             for J in Js:
                 filename = "ising_ml_data/" + f"N_{N}_J_{J}_B_{B}_"
-                np.savetxt(filename + "labels_test.csv", temperatures)
+                labels = np.array([temperatures[i//n_samples] for i in range(len(temperatures)*n_samples)])
+                np.savetxt(filename + "labels_train.csv", labels)
                 configurations = np.empty((n_samples*len(temperatures), N, N), dtype=int)
                 for i,temperature in enumerate(temperatures):
                     for sample in range(n_samples):
                         configuration = generate_configuration(N=N, random=True)
                         propagate(configuration=configuration, n_timestep=300, n_output=0, J=J, B=B, temperature=temperature, filename=None, algorithm="wolff")
                         configurations[i*n_samples + sample] = configuration
-                save_configurations_bin(filename + "data_test", configurations, allow_overwrite=True)
+                save_configurations_bin(filename + "data_train", configurations, allow_overwrite=True)
 
 
 def main():
-    temperatures = np.random.random(1000)*4.0
+    temperatures = np.random.random(10000)*4.0
 
     J = 1
     B = 0
