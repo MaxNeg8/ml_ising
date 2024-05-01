@@ -839,7 +839,7 @@ def save_configurations_bin(filename : str, configurations : np.ndarray, allow_o
         file.write(N_configs)
         file.write(struct.pack("<" + "B"*len(byte_array), *byte_array)) # Write all bytes as unsigned chars
 
-def load_configurations_bin(filename : str) -> np.ndarray:
+def load_configurations_bin(filename : str, flatten : bool = False) -> np.ndarray:
     """
     Loads the configurations saved in binary form using save_configurations_bin function and
     returns the loaded data as numpy array (same as input value to the save function)
@@ -849,12 +849,19 @@ def load_configurations_bin(filename : str) -> np.ndarray:
     filename : str
         The name of the file (including .ising file ending) to be loaded
 
+    flatten : bool
+        If this is True, the individual configurations are flattened from shape (N, N) to (N**2, )
+
     Returns
     -------
     configurations : np.ndarray
         The loaded configurations (2-dim array if only one configuration was saved,
         3-dim array if multiple configurations were saved, in which case configurations[i]
         is the ith configuration of shape (N, N))
+
+        If flattened is True, the returned array will either be 1-dimensional (N**2, ) if
+        only one configuration was stored or 2-dimensional (N_configs, N**2) if N_configs
+        configurations were stored.
     """
     if not os.path.isfile(filename):
         raise ValueError(f"File {filename} does not exist")
@@ -877,6 +884,8 @@ def load_configurations_bin(filename : str) -> np.ndarray:
                 # Here, we perform some bit manipulation in order to get the value of the bit
                 # corresponding to the current spin and transforming it back from 0/1 to -1/1
                 configurations[config, spin//N, spin%N] = ((read_bytes[byte] >> (7-bit%8)) & 1)*2-1
+        if flatten:
+            configurations = configurations.reshape((N_configs, N**2))
     else:
         configurations = np.empty((N, N), dtype=int) # Prepare the returned configurations
         for spin in range(N**2):
@@ -884,6 +893,8 @@ def load_configurations_bin(filename : str) -> np.ndarray:
             # Here, we perform some bit manipulation in order to get the value of the bit
             # corresponding to the current spin and transforming it back from 0/1 to -1/1
             configurations[spin//N, spin%N] = ((read_bytes[byte] >> (7-spin%8)) & 1)*2-1
+        if flatten:
+            configurations = configurations.flatten()
     return configurations
     
 
