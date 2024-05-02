@@ -80,35 +80,40 @@ def test_loop(dataloader, model, loss_fn):
     print(f"Correct: {100*correct:0.2f}%, Avg loss: {test_loss:>8f}\n")
 
 def main():
-    training_data = IsingDataset(train=True, N=10, J=1, B=0)
-    testing_data = IsingDataset(train=False, N=10, J=1, B=0)
+    N = 25
+    J = 1
+    B = 0
+
+    training_data = IsingDataset(train=True, N=N, J=J, B=B)
+    testing_data = IsingDataset(train=False, N=N, J=J, B=B)
 
     train_data_loader = DataLoader(training_data, batch_size=100, shuffle=True)
     test_data_loader = DataLoader(testing_data, batch_size=1, shuffle=True)
 
-    model = IsingNNModel(N=10)
+    model = IsingNNModel(N=N)
 
     learning_rate = 1e-3
 
     loss_fn = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
-    epochs = 100
+    epochs = 150
     for t in range(epochs):
         print(f"Epoch {t+1}\n---------------------------------")
         train_loop(train_data_loader, model, loss_fn, optimizer)
         if t % 25 == 0:
             test_loop(test_data_loader, model, loss_fn)
 
-    print("Done.\nTesting:")
+    print("Done.\nSaving...")
+    
+    filename = f"ising_nn_models/N_{N}_J_{J}_B_{B}"
 
-    model.eval()
+    torch.save(model.state_dict(), filename + ".pth")
 
     with torch.no_grad():
         temp_init, temp_pred = [], []
         for X, y in test_data_loader:
             pred = model(X)
-            print(f"{y.numpy().flatten()} -> {pred.numpy().flatten()}")
 
             temp_init.append(y.numpy().flatten()[0])
             temp_pred.append(pred.numpy().flatten()[0])
@@ -124,6 +129,9 @@ def main():
 
         ax.legend()
 
+
+        np.savetxt(f"{filename}.csv", np.vstack([temp_init, temp_pred]).T, delimiter=",", header="temp_init,temp_pred")
+        
         plt.show()
 
 if __name__ == "__main__":
