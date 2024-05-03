@@ -782,6 +782,7 @@ def save_configurations_bin(filename : str, configurations : np.ndarray, allow_o
     Used to save a list of configurations in binary form in order to consume as
     little space as possible. The file format will be the following:
 
+    5 bytes: File header, word "ising" in ascii encoding
     2 bytes: Unsigned short, representing N (edge length) of the configurations
     4 bytes: Unsigned int, storing the number of configurations saved in the file
     Rest of the file: Configurations, where each byte represents 8 spins in binary (spin -1 is 0, spin 1 is 1)
@@ -835,9 +836,10 @@ def save_configurations_bin(filename : str, configurations : np.ndarray, allow_o
     N_configs = struct.pack("<I", len(configs)) # Store number of configurations as unsigned int (4 byte)
  
     with open(filename, "wb") as file:
+        file.write("ising".encode("ascii")) # File header
         file.write(N_ushort)
         file.write(N_configs)
-        file.write(struct.pack("<" + "B"*len(byte_array), *byte_array)) # Write all bytes as unsigned chars
+        file.write(struct.pack(f"<{len(byte_array)}B", *byte_array)) # Write all bytes as unsigned chars
 
 def load_configurations_bin(filename : str, flatten : bool = False) -> np.ndarray:
     """
@@ -870,10 +872,15 @@ def load_configurations_bin(filename : str, flatten : bool = False) -> np.ndarra
     N_configs = None
     read_bytes = None
     with open(filename, "rb") as file:
+        try:
+            header = file.read(5).decode("ascii") # File header
+            assert header == "ising"
+        except (AssertionError, UnicodeDecodeError):
+            raise ValueError(f"File {filename} does not seem to be ising configuration collection (file header does not match)")
         N = struct.unpack("<H", file.read(2))[0] # Retrieve the edge length (N)
         N_configs = struct.unpack("<I", file.read(4))[0] # Retrieve the number of stored configurations
         data = file.read()
-        read_bytes = struct.unpack("<" + "B"*len(data), data) # Retrieve the spins values
+        read_bytes = struct.unpack(f"<{len(data)}B", data) # Retrieve the spins values
     
     if N_configs > 1:
         configurations = np.empty((N_configs, N, N), dtype=int) # Prepare the returned configurations

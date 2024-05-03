@@ -173,6 +173,7 @@ The `load_configurations_bin` function expects a file name (including the file e
 the same way as they were stored.
 
 The file format of a ".ising" binary file is the following:
+* 5 bytes: File header, word "ising" in ascii encoding
 * 2 bytes: Unsigned short representing the edge length N of each configuration
 * 4 bytes: Unsigned integer representing the number of configurations stored in the file
 * Rest of the file: Flattened spin configurations represented as bits. The last byte will be padded with zeros at the end if necessary.
