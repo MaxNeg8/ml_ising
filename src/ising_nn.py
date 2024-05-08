@@ -80,7 +80,7 @@ def test_loop(dataloader, model, loss_fn):
     print(f"Correct: {100*correct:0.2f}%, Avg loss: {test_loss:>8f}\n")
 
 def main():
-    N = 25
+    N = 10
     J = 1
     B = 0
 
