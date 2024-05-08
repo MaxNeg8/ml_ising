@@ -87,7 +87,7 @@ def main():
     training_data = IsingDataset(train=True, N=N, J=J, B=B)
     testing_data = IsingDataset(train=False, N=N, J=J, B=B)
 
-    train_data_loader = DataLoader(training_data, batch_size=100, shuffle=True)
+    train_data_loader = DataLoader(training_data, batch_size=1000, shuffle=True)
     test_data_loader = DataLoader(testing_data, batch_size=1, shuffle=True)
 
     model = IsingNNModel(N=N)
@@ -97,7 +97,7 @@ def main():
     loss_fn = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
-    epochs = 150
+    epochs = 500
     for t in range(epochs):
         print(f"Epoch {t+1}\n---------------------------------")
         train_loop(train_data_loader, model, loss_fn, optimizer)

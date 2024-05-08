@@ -34,6 +34,10 @@ def simulate(N: int, J : float, B : float, temperature : float, training : bool,
     Bs = [B] if not isinstance(B, list) and not isinstance(B, np.ndarray) else B
     temperatures = [temperature] if not isinstance(temperature, list) and not isinstance(temperature, np.ndarray) else temperature
     train_test = "train" if training else "test"
+
+    total_simulations = len(Ns)*len(Js)*len(Bs)*len(temperatures)*n_samples
+    current = 0
+
     for B in Bs:
         for N in Ns:
             for J in Js:
@@ -46,11 +50,13 @@ def simulate(N: int, J : float, B : float, temperature : float, training : bool,
                         configuration = generate_configuration(N=N, random=True)
                         propagate(configuration=configuration, n_timestep=300, n_output=0, J=J, B=B, temperature=temperature, filename=None, algorithm="wolff")
                         configurations[i*n_samples + sample] = configuration
+                        current += 1
+                        print(f"Progress: {current}/{total_simulations} ({current/total_simulations*100:0.2f}%)", end="\r")
                 save_configurations_bin(filename + f"data_{train_test}", configurations, allow_overwrite=True)
-
+    print("\nDone.")
 
 def main():
-    temperatures = np.random.random(10000)*4.0
+    temperatures = np.random.random(100000)*4.0
 
     J = 1
     B = 0

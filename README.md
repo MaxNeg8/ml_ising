@@ -179,3 +179,28 @@ The file format of a ".ising" binary file is the following:
 * Rest of the file: Flattened spin configurations represented as bits. The last byte will be padded with zeros at the end if necessary.
 
 Note that all values are stored as little endians.
+
+## Machine learning using Neural Networks
+
+The aim of this project is to predict the temperature an Ising configuration was sampled at from a single snapshot using Machine Learning (ML).
+For this task, the library PyTorch was chosen and, mostly out of curiosity, an approach involving Artificial Neural Networks (NNs) is taken.
+
+### Data generation
+
+The data needed to train the ML model will be a huge number of configurations sampled at different temperatures. For this, the Python script
+`ising_data_generator.py` was written. It allows for easy generation of thousands of samples at random temperatures and given system parameters,
+the latter of which can be set in the script's main function. The results will be saved in the folder `ising_ml_data` and named according to the
+given parameters. Each set of parameters (N, J, B) will produce two files:
+* A `.ising` file containing the configurations in binary form (see section above)
+* A `.csv` file containing the corresponding labels (sorted the same way as the configurations)
+
+If necessary, the generated datasets can be inspected visually using the `dataset_inspector.py` script (`python dataset_inspector.py -h` for usage info).
+
+### Creating models
+
+To create, train and test models, the script `ising_nn.py` is used. The model parameters can easily be changed in the script's main function and the
+number of hidden layers/nodes can be adjusted in the IsingNNModel class. The output of the script will be two files in the directory `ising_nn_models`:
+* A `.pth` file (the PyTorch file format for storing models) containing the model's weights
+* A `.csv` file containing the model's predictions of the temperatures of the test data set along with the corresponding labels
+
+The results can be inspected in the `ising_nn_analysis.ipynb` notebook
