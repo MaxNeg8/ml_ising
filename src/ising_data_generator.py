@@ -1,5 +1,4 @@
 from ising import generate_configuration, propagate, save_configurations_bin
-import time
 import numpy as np
 
 def simulate(N: int, J : float, B : float, temperature : float, training : bool, n_samples : int = 1):
