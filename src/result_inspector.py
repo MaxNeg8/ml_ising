@@ -15,13 +15,16 @@ def plot(model_results, data, labels):
     ax[0].scatter(model_results[:, 0], model_results[:, 1], picker=1)
     ax[1].set_axis_off()
     marker = ax[0].scatter(model_results[0, 0], model_results[0, 1], color="red")
+    ax[1].imshow(data[np.argwhere(np.isclose(model_results[0, 0], labels)).flatten()[0]], cmap="summer", vmin=-1, vmax=1)
+    ax[1].set_axis_off()
+    ax[1].set_title(f"initial: {model_results[0, 0]}, predicted: {model_results[0, 1]}")
 
     def on_click(event):
         index = event.ind[0]
         temp_init, temp_pred = model_results[index]
         label_index = np.argwhere(np.isclose(temp_init, labels)).flatten()[0]
         ax[1].cla()
-        ax[1].imshow(data[label_index], cmap="summer")
+        ax[1].imshow(data[label_index], cmap="summer", vmin=-1, vmax=1)
         ax[1].set_axis_off()
         ax[1].set_title(f"initial: {temp_init}, preicted: {temp_pred}")
         marker.set_offsets((temp_init, temp_pred))
