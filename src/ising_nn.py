@@ -41,6 +41,8 @@ class IsingNNModel(nn.Module):
             nn.Linear(50, 1)
         )
 
+        self.N = N
+
     def forward(self, x):
         return self.architecture(x)
 
