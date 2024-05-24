@@ -75,12 +75,12 @@ def train_loop(dataloader, model, loss_fn, optimizer):
     model.eval()
 
 def main():
-    N = 25
+    N = 10
     J = 1
     B = 0
 
     model = IsingNNModel(N=N)
-    model.load_state_dict(torch.load(f"ising_nn_models/N_{N}_J_1_B_0.pth"))
+    model.load_state_dict(torch.load(f"ising_nn_models_translation/N_{N}_J_1_B_0.pth"))
 
     training_data = IsingTranslationDataset(N=N, J=J, B=B)
     train_data_loader = DataLoader(training_data, batch_size=1000, shuffle=False)
@@ -90,7 +90,7 @@ def main():
     loss_fn = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
-    epochs = 300
+    epochs = 500
     for t in range(epochs):
         training_data.roll_data()
         print(f"Epoch {t+1}\n---------------------------------")
