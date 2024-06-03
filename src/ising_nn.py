@@ -5,6 +5,7 @@ from torch import nn
 from torch.utils.data import Dataset, DataLoader
 
 from ising import load_configurations_bin
+from preprocessing import preprocess
 
 from matplotlib import pyplot as plt
 
@@ -30,7 +31,7 @@ class IsingDataset(Dataset):
 
 class IsingNNModel(nn.Module):
 
-    def __init__(self, N):
+    def __init__(self, N, preprocessing=False):
         super(IsingNNModel, self).__init__()
 
         self.architecture = nn.Sequential(
@@ -42,8 +43,12 @@ class IsingNNModel(nn.Module):
         )
 
         self.N = N
+        self.preprocessing = preprocessing
 
     def forward(self, x):
+        if self.preprocessing:
+            x = preprocess((x.numpy().reshape((self.N, self.N)) + 1) / 2)
+            x = torch.tensor(x.flatten()*2 - 1, dtype=torch.float32)
         return self.architecture(x)
 
 
