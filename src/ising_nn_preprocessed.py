@@ -75,11 +75,15 @@ def train_loop(dataloader, model, loss_fn, optimizer):
     model.eval()
 
 def main():
-    N = 25
+    N = 16
     J = 1
     B = 0
 
     model = IsingNNModel(N=N)
+
+    filename = f"ising_nn_models_preprocessed/N_{N}_J_{J}_B_{B}"
+    
+    model.load_state_dict(torch.load(filename + ".pth"))
 
     training_data = IsingPreprocessedDataset(train=True, N=N, J=J, B=B)
     train_data_loader = DataLoader(training_data, batch_size=1000, shuffle=False)
@@ -96,8 +100,6 @@ def main():
 
     print("Done.\nSaving as new model...")
     
-    filename = f"ising_nn_models_preprocessed/N_{N}_J_{J}_B_{B}"
-
     torch.save(model.state_dict(), filename + ".pth")
 
     testing_data = IsingPreprocessedDataset(train=False, N=N, J=J, B=B)
