@@ -234,6 +234,7 @@ def _test_neighbours(a, lowest_largest_number_results, row_col="row"):
             number = _array_to_number(array)
             if number < lowest:
                 lowest = number
+                skipping += results
                 results = [j]
             elif number == lowest:
                 results.append(j)
